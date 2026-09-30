@@ -3,7 +3,8 @@ import { cookies } from 'next/headers'
 import { SiteHeader } from '@/components/SiteHeader.tsx'
 import { chapterCookie } from '@/lib/chapter.ts'
 import { parseChapter } from '@/lib/spoiler.ts'
-import { listNovels } from '@/lib/queries.ts'
+import { mediaUrl } from '@/lib/media.ts'
+import { covers, listNovels } from '@/lib/queries.ts'
 
 // Planned titles are shown greyed out so readers can see what is coming.
 const SOON = [
@@ -11,9 +12,11 @@ const SOON = [
   { zh: '一念永恒', vi: 'Nhất Niệm Vĩnh Hằng', cover: '#602641' }, { zh: '剑来', vi: 'Kiếm Lai', cover: '#644D31' },
 ]
 
-function Cover({ zh, color, seal }: { zh: string; color: string; seal?: boolean }) {
+function Cover({ zh, color, seal, image }: { zh: string; color: string; seal?: boolean; image?: { id: number; artist_name: string } }) {
   return (
     <span className="cover" style={{ background: color }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized */}
+      {image && <img src={mediaUrl(image.id, true)} alt={`Bìa do ${image.artist_name} vẽ`} width={112} height={160} />}
       <span lang="zh" className="label brushfont">{zh}</span>
       {[20, 60, 100, 138].map((t) => <span key={t} className="stitch" style={{ top: t }} />)}
       {seal && <span className="seal" style={{ position: 'absolute', right: 22, bottom: 12, width: 22, height: 22 }} />}
@@ -22,7 +25,7 @@ function Cover({ zh, color, seal }: { zh: string; color: string; seal?: boolean 
 }
 
 export default async function Home() {
-  const novels = await listNovels()
+  const [novels, art] = await Promise.all([listNovels(), covers()])
   const jar = await cookies()
   const reading = novels.map((n) => ({ n, ch: parseChapter(jar.get(chapterCookie(n.slug))?.value, n.chapter_count) })).filter((x) => x.ch !== null)
   const soon = SOON.filter((s) => !novels.some((n) => n.title_zh === s.zh))
@@ -52,7 +55,7 @@ export default async function Home() {
         <section id="tang-thu" aria-label="Tàng thư" className="shelf">
           {novels.map((n) => (
             <Link key={n.id} href={`/truyen/${n.slug}/nhan-vat`} className="book">
-              <Cover zh={n.title_zh} color={n.cover} seal />
+              <Cover zh={n.title_zh} color={n.cover} seal image={art.get(n.id)} />
               <span style={{ textAlign: 'center' }}><b>{n.title_vi}</b><br /><span className="small" style={{ color: 'var(--red-text)', fontWeight: 600 }}>{n.is_sample ? 'Bản xem thử' : 'Đang mở'}</span></span>
             </Link>
           ))}
@@ -63,6 +66,7 @@ export default async function Home() {
             </div>
           ))}
         </section>
+        <p className="small muted" style={{ textAlign: 'center', marginTop: 28 }}>Họa sĩ? <Link href="/dong-gop/tranh">Gửi tranh bìa hoặc tranh nhân vật</Link>, có ghi tên và link của bạn.</p>
       </main>
     </div>
   )

@@ -1,7 +1,7 @@
 'use server'
-import { revalidatePath } from 'next/cache'
+import { refresh } from 'next/cache'
 import { headers } from 'next/headers'
-import { editInterval, resolveConflict, resolveReport, setReview } from '@/lib/admin.ts'
+import { editInterval, resolveConflict, resolveReport, setMediaStatus, setReview } from '@/lib/admin.ts'
 import type { Review } from '@/lib/spoiler.ts'
 import table from '@/data/hanviet.json' with { type: 'json' }
 
@@ -18,19 +18,19 @@ const int = (v: FormDataEntryValue | null) => (v === null || v === '' ? null : N
 export async function review(form: FormData) {
   await guard()
   await setReview(kindOf(form.get('kind')), Number(form.get('id')), String(form.get('review')) as Review)
-  revalidatePath('/admin')
+  refresh()
 }
 
 export async function edit(form: FormData) {
   await guard()
   await editInterval(kindOf(form.get('kind')), Number(form.get('id')), Number(form.get('from')), int(form.get('to')), String(form.get('value') ?? ''))
-  revalidatePath('/admin')
+  refresh()
 }
 
 export async function closeReport(form: FormData) {
   await guard()
   await resolveReport(Number(form.get('id')))
-  revalidatePath('/admin')
+  refresh()
 }
 
 export async function settleConflict(form: FormData) {
@@ -38,5 +38,12 @@ export async function settleConflict(form: FormData) {
   const choice = String(form.get('choice'))
   const pick = choice === 'new' ? { create: true as const } : choice === 'dismiss' ? { dismiss: true as const } : { entityId: Number(choice) }
   await resolveConflict(Number(form.get('id')), pick, table as unknown as Record<string, [string, string]>)
-  revalidatePath('/admin')
+  refresh()
+}
+
+export async function moderateMedia(form: FormData) {
+  await guard()
+  const ids = form.getAll('id').map(Number)
+  await setMediaStatus(ids, form.get('status') === 'approved' ? 'approved' : 'rejected')
+  refresh()
 }

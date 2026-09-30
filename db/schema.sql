@@ -115,3 +115,34 @@ create table if not exists report (
 );
 create index if not exists report_open_idx on report (status, created_at);
 create index if not exists report_ip_idx on report (ip_hash, created_at);
+
+-- Appearance from the earliest chapter that describes the look (pipeline); used for AI portraits.
+alter table entity add column if not exists appearance text not null default '';
+alter table entity add column if not exists appearance_ch int;
+
+-- Covers and portraits. Artist uploads first; AI portraits only fill gaps. Every image is spoiler-gated by from_ch.
+-- ponytail: image bytes live in Postgres (fine for a few GB); move to R2/S3 with the same table as metadata when it grows.
+create table if not exists media (
+  id           serial primary key,
+  novel_id     int  not null references novel on delete cascade,
+  entity_id    int  references entity on delete cascade,   -- null = novel cover
+  kind         text not null check (kind in ('cover', 'portrait')),
+  source       text not null check (source in ('artist', 'ai')),
+  status       text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  from_ch      int  not null default 0,                    -- shows the character as of this chapter
+  artist_name  text not null default '',
+  artist_url   text not null default '',
+  artist_email text not null default '',                   -- private: verification and takedown contact
+  license      text not null default '' check (license in ('', 'cc-by', 'cc-by-nc', 'display-only')),
+  prompt       text not null default '',                   -- AI portraits only
+  width        int  not null,
+  height       int  not null,
+  bytes        bytea not null,                             -- webp, max 1200px
+  thumb        bytea not null,                             -- webp, max 360px
+  ip_hash      text not null default '',
+  created_at   timestamptz not null default now(),
+  check ((kind = 'cover') = (entity_id is null))
+);
+create index if not exists media_entity_idx on media (entity_id, status);
+create index if not exists media_novel_idx on media (novel_id, kind, status);
+create index if not exists media_ip_idx on media (ip_hash, created_at);

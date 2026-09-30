@@ -3,12 +3,14 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChapterBar } from '@/components/ChapterBar.tsx'
 import { Masked } from '@/components/Masked.tsx'
+import { Portrait } from '@/components/Portrait.tsx'
 import { RelationGraph } from '@/components/RelationGraph.tsx'
 import { ReportButton } from '@/components/ReportButton.tsx'
 import { ScrollToEnd } from '@/components/ScrollToEnd.tsx'
 import { SiteHeader } from '@/components/SiteHeader.tsx'
 import { readChapter } from '@/lib/chapter.ts'
 import { ATTR_LABEL, RELATION_LABEL, RELATION_ORDER, RELATION_SEAL } from '@/lib/labels.ts'
+import { credit, gallery, mediaUrl, pickPortrait } from '@/lib/media.ts'
 import { graphNodes, profileView, type Milestone } from '@/lib/profile.ts'
 import { getNovel, getProfile, type Relation } from '@/lib/queries.ts'
 
@@ -61,6 +63,9 @@ export default async function ProfilePage({ params }: Params) {
   const graph = graphNodes(v.masked ? v.relationsAhead.map((r) => ({ ...r, ended: false })) : v.relations)
   const groups = RELATION_ORDER.map((t) => ({ t, items: (v.masked ? v.relationsAhead : v.relations).filter((r) => r.type === t) })).filter((g) => g.items.length)
   const maxBin = Math.max(1, ...v.bins)
+  const portrait = pickPortrait(profile.media, ch, e.first_ch)
+  const art = gallery(profile.media.filter((m) => m.kind === 'portrait'), v.masked ? e.first_ch : v.at)
+  const contribute = `/dong-gop/tranh?truyen=${novel.slug}&nhan-vat=${e.slug}`
 
   return (
     <div className="page">
@@ -71,10 +76,12 @@ export default async function ProfilePage({ params }: Params) {
       <ChapterBar novel={novel} ch={ch} />
 
       <main className="wrap above">
-        <section className="hero">
+        <section className={`hero ${portrait ? 'has-portrait' : ''}`}>
           <div className="vcol" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-            <span lang="zh" className="vname brushfont">{e.name_zh}</span>
-            <span className="seal lg" title={e.role === 'chinh' ? 'Nhân vật chính' : 'Nhân vật phụ'} lang="zh">{e.role === 'chinh' ? '主角' : '配角'}</span>
+            {portrait ? <Portrait m={portrait} name={e.name_vi} nameZh={e.name_zh} contributeHref={contribute} /> : <>
+              <span lang="zh" className="vname brushfont">{e.name_zh}</span>
+              <span className="seal lg" title={e.role === 'chinh' ? 'Nhân vật chính' : 'Nhân vật phụ'} lang="zh">{e.role === 'chinh' ? '主角' : '配角'}</span>
+            </>}
           </div>
 
           <div className="intro" style={{ display: 'flex', flexDirection: 'column', gap: 18, paddingTop: 8 }}>
@@ -194,6 +201,29 @@ export default async function ProfilePage({ params }: Params) {
           )}
         </section>
 
+
+        <section className="section" aria-labelledby="hoa-quyen">
+          <div className="section-head">
+            <span lang="zh" aria-hidden="true" className="brushfont">画卷</span>
+            <span><h2 id="hoa-quyen">Họa quyển</h2><span className="small muted">Tranh họa sĩ vẽ {e.name_vi}, xếp theo giai đoạn truyện</span></span>
+            <span className="spacer" />
+            <Link href={contribute} className="btn">Đóng góp tranh</Link>
+          </div>
+          {art.seen.length === 0 && art.ahead === 0
+            ? <p className="muted">Chưa có tranh nào. Nếu bạn vẽ {e.name_vi}, hãy gửi tranh để mọi người cùng xem, có ghi tên và link của bạn.</p>
+            : <div className="art-grid">
+                {art.seen.map((m) => (
+                  <figure key={m.id} className="art-card">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized thumbnails */}
+                    <img src={mediaUrl(m.id, true)} alt={`${e.name_vi}, ${credit(m)}`} width={m.width} height={m.height} loading="lazy" />
+                    <figcaption className="small muted">{credit(m)} · từ ch. {m.from_ch}</figcaption>
+                  </figure>
+                ))}
+                {art.ahead > 0 && (
+                  <div className="mask" style={{ minHeight: 200 }}><div className="mask-cover"><span className="small">Còn {art.ahead} tranh vẽ {e.name_vi} ở giai đoạn sau {chLabel}</span></div></div>
+                )}
+              </div>}
+        </section>
         <section className="section" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 48 }}>
           <div style={{ flex: '1 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="section-head"><span lang="zh" aria-hidden="true" className="brushfont" style={{ fontSize: 48 }}>名号</span><h2 style={{ fontSize: 30 }}>Danh hiệu và bí danh</h2></div>

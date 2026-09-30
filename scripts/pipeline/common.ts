@@ -50,6 +50,7 @@ export const ChapterExtraction = z.object({
     faction: z.string().describe('Sect or faction this chapter says the person belongs to, Chinese name. Empty if not stated.'),
     location: z.string().describe('Major region the person is in during this chapter (country, sea, continent), Chinese name. Empty if unclear.'),
     died: z.boolean().describe('True only if the person dies in this chapter.'),
+    appearance_en: z.string().describe('How this chapter describes the person\'s look, in English: apparent age, build, face, hair, clothing, notable items. Empty if the chapter does not describe it.'),
     evidence: z.string().describe('Up to 30 Chinese characters copied from the chapter that support the realm, faction or death. Empty if none.'),
     confidence: z.number().describe('0 to 1: how sure you are about realm, faction and death for this person.'),
   })),

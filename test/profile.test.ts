@@ -22,6 +22,7 @@ const p: Profile = {
     { id: 2, name: '韩老魔', name_vi: 'Hàn lão ma', pinyin: '', note: '', first_ch: 700 },
   ],
   mentions: [{ chapter: 1, count: 3 }, { chapter: 400, count: 5 }],
+  media: [],
 }
 
 test('reader at ch 10: master is current, its end and later events are hidden', () => {

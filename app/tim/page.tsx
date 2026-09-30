@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
+import { Thumb } from '@/components/Portrait.tsx'
 import { SiteHeader } from '@/components/SiteHeader.tsx'
 import { chapterCookie } from '@/lib/chapter.ts'
 import { parseChapter } from '@/lib/spoiler.ts'
@@ -23,7 +24,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <div className="results">
             {hits.map((h) => (
               <Link key={`${h.novel_slug}/${h.slug}`} href={`/truyen/${h.novel_slug}/nhan-vat/${h.slug}`} className="result">
-                <span className="enso brushfont" lang="zh" style={{ width: 52, height: 52, fontSize: 24 }}>{[...h.name_zh][0]}</span>
+                {h.portrait ? <Thumb id={h.portrait} alt="" size={48} /> : <span className="enso brushfont" lang="zh" style={{ width: 52, height: 52, fontSize: 24 }}>{[...h.name_zh][0]}</span>}
                 <span style={{ flex: 1 }}>
                   <span className="display" style={{ fontSize: 24, fontWeight: 700 }}>{h.name_vi} <span lang="zh" className="zh muted" style={{ fontSize: 16 }}>{h.name_zh}</span></span><br />
                   <span className="small muted">{h.matched !== h.name_zh ? `Bí danh “${h.matched_vi || h.matched}” · ` : ''}{h.novel_title} · {h.role === 'chinh' ? 'nhân vật chính' : `từ ch. ${h.first_ch}`}</span>

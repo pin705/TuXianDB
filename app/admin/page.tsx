@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { openConflicts, openReports, reviewQueue, stats } from '@/lib/admin.ts'
-import { closeReport, edit, review, settleConflict } from './actions.ts'
+import { openConflicts, openReports, pendingMedia, reviewQueue, stats } from '@/lib/admin.ts'
+import { LICENSES } from '@/lib/media.ts'
+import { closeReport, edit, moderateMedia, review, settleConflict } from './actions.ts'
 
 export const metadata: Metadata = { title: 'Kiểm duyệt', robots: { index: false } }
 
-const TABS = { queue: 'Hàng đợi', reports: 'Báo sai', conflicts: 'Gộp bí danh' } as const
+const TABS = { queue: 'Hàng đợi', reports: 'Báo sai', conflicts: 'Gộp bí danh', tranh: 'Tranh' } as const
 
 function Stamp({ kind, id }: { kind: string; id: number }) {
   return (
@@ -29,7 +30,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <nav aria-label="Khu vực" style={{ display: 'flex', gap: 6, marginLeft: 20 }}>
           {Object.entries(TABS).map(([k, l]) => (
             <Link key={k} href={`/admin?tab=${k}`} className="chip" aria-current={tab === k ? 'page' : undefined}>
-              {l} · {k === 'queue' ? s.queue : k === 'reports' ? s.open_reports : '…'}
+              {l} · {k === 'queue' ? s.queue : k === 'reports' ? s.open_reports : k === 'tranh' ? s.media : '…'}
             </Link>
           ))}
         </nav>
@@ -46,6 +47,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         {tab === 'queue' && <Queue />}
         {tab === 'reports' && <Reports />}
         {tab === 'conflicts' && <Conflicts />}
+        {tab === 'tranh' && <Media />}
       </main>
     </div>
   )
@@ -68,8 +70,7 @@ async function Queue() {
               </td>
               <td className="small">{q.quotes.length ? q.quotes.map((v) => <div key={v.chapter}><b style={{ color: 'var(--red-text)' }}>ch. {v.chapter}</b> {v.quote}</div>) : <span className="muted">—</span>}</td>
               <td>
-                <form action={edit} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="hidden" name="kind" value={q.kind} /><input type="hidden" name="id" value={q.id} />
+                <form action={edit} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}><input type="hidden" name="kind" value={q.kind} /><input type="hidden" name="id" value={q.id} />
                   <input type="number" name="from" defaultValue={q.from_ch} aria-label="Từ chương" min={0} required />
                   <input type="number" name="to" defaultValue={q.to_ch ?? ''} aria-label="Tới chương (để trống nếu chưa kết thúc)" min={1} />
                   {q.kind === 'fact' && <input type="text" name="value" placeholder="giá trị mới" aria-label="Giá trị mới" />}
@@ -130,6 +131,44 @@ async function Conflicts() {
           <button className="btn btn-solid" style={{ alignSelf: 'flex-start' }}>Lưu</button>
         </form>
       ))}
+    </div>
+  )
+}
+
+async function Media() {
+  const items = await pendingMedia()
+  const ai = items.filter((m) => m.source === 'ai')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form action={moderateMedia} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><label className="small muted" htmlFor="takedown">Gỡ tranh đã duyệt (yêu cầu bản quyền): mã tranh</label>
+        <input id="takedown" type="number" name="id" min={1} required />
+        <button name="status" value="rejected" className="link-btn">Gỡ</button>
+      </form>
+      <p className="small muted" style={{ margin: 0 }}>Kiểm tra: đúng nhân vật, không phải ảnh chụp donghua hay tranh của người khác (thử tìm ngược bằng Google Lens), không lộ tình tiết sau chương đã chọn.</p>
+      {ai.length > 1 && (
+        <form action={moderateMedia}>{ai.map((m) => <input key={m.id} type="hidden" name="id" value={m.id} />)}
+          <button name="status" value="approved" className="btn">Duyệt cả {ai.length} tranh AI đang hiển thị</button>
+        </form>
+      )}
+      {!items.length && <p className="muted">Không có tranh nào chờ duyệt.</p>}
+      <div className="art-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        {items.map((m) => (
+          <figure key={m.id} className="art-card panel" style={{ padding: 12 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- admin preview */}
+            <img src={`/admin/media/${m.id}`} alt="" width={m.width} height={m.height} />
+            <figcaption className="small" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <b>{m.kind === 'cover' ? `Bìa ${m.novel_title}` : <Link href={`/truyen/${m.novel_slug}/nhan-vat/${m.entity_slug}`}>{m.entity_name}</Link>}</b>
+              {m.source === 'ai'
+                ? <span className="muted">AI · theo mô tả ch. {m.from_ch}</span>
+                : <span className="muted">{m.artist_name} · {m.artist_email}{m.artist_url && <> · <a href={m.artist_url} target="_blank" rel="noopener noreferrer">link</a></>}<br />{LICENSES[m.license as keyof typeof LICENSES]?.label} · từ ch. {m.from_ch} · {m.width}×{m.height}</span>}
+              <form action={moderateMedia} style={{ display: 'flex', gap: 10 }}><input type="hidden" name="id" value={m.id} />
+                <button name="status" value="approved" className="btn btn-solid" style={{ minHeight: 44 }}>Duyệt</button>
+                <button name="status" value="rejected" className="link-btn">Từ chối</button>
+              </form>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
     </div>
   )
 }

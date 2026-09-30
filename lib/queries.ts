@@ -4,6 +4,7 @@ import { sql } from './db.ts'
 import { MIN_AUTO_CONFIDENCE, type Review } from './spoiler.ts'
 import { perspective, type Attr, type Perspective, type RelationType } from './labels.ts'
 import { isHan, normalize } from './text.ts'
+import type { MediaMeta } from './media.ts'
 
 export type Novel = {
   id: number
@@ -61,6 +62,13 @@ export async function listNovels(): Promise<Novel[]> {
   return sql<Novel[]>`select ${NOVEL_COLS} from novel where is_live or is_sample order by id`
 }
 
+/** Latest approved artist cover per novel. */
+export async function covers(): Promise<Map<number, { id: number; artist_name: string }>> {
+  const rows = await sql<{ novel_id: number; id: number; artist_name: string }[]>`
+    select distinct on (novel_id) novel_id, id, artist_name from media where kind = 'cover' and status = 'approved' order by novel_id, id desc`
+  return new Map(rows.map((r) => [r.novel_id, r]))
+}
+
 export async function getNovel(slug: string): Promise<Novel | null> {
   const [n] = await sql<Novel[]>`select ${NOVEL_COLS} from novel where slug = ${slug} and (is_live or is_sample)`
   return n ?? null
@@ -72,6 +80,7 @@ export type Profile = {
   relations: Relation[]
   aliases: Alias[]
   mentions: { chapter: number; count: number }[]
+  media: MediaMeta[]
 }
 
 export async function getProfile(novelId: number, slug: string): Promise<Profile | null> {
@@ -79,7 +88,7 @@ export async function getProfile(novelId: number, slug: string): Promise<Profile
     select id, slug, type, name_zh, name_vi, pinyin, first_ch, intro_safe, role, mention_total
     from entity where novel_id = ${novelId} and type = 'character' and slug = ${slug}`
   if (!entity) return null
-  const [facts, rels, aliases, mentions] = await Promise.all([
+  const [facts, rels, aliases, mentions, media] = await Promise.all([
     sql<Fact[]>`
       select id, attr, value, value_zh, from_ch, to_ch, review, confidence from fact
       where entity_id = ${entity.id} and ${SHOWN} order by from_ch, id`,
@@ -91,13 +100,16 @@ export async function getProfile(novelId: number, slug: string): Promise<Profile
       order by r.from_ch, r.id`,
     sql<Alias[]>`select id, name, name_vi, pinyin, note, first_ch from alias where entity_id = ${entity.id} order by first_ch, id`,
     sql<{ chapter: number; count: number }[]>`select chapter, count from mention where entity_id = ${entity.id} order by chapter`,
+    sql<MediaMeta[]>`
+      select id, kind, source, from_ch, artist_name, artist_url, license, width, height from media
+      where entity_id = ${entity.id} and status = 'approved' order by from_ch, id`,
   ])
   const relations = rels.map((r) => ({
     id: r.id, from_ch: r.from_ch, to_ch: r.to_ch, review: r.review, confidence: r.confidence,
     type: perspective(r.type, r.owner_is_a),
     other: { id: r.o_id, slug: r.o_slug, type: r.o_type, name_vi: r.o_name_vi, name_zh: r.o_name_zh, first_ch: r.o_first_ch },
   }))
-  return { entity, facts, relations, aliases, mentions }
+  return { entity, facts, relations, aliases, mentions, media }
 }
 
 export type ListItem = Pick<Entity, 'id' | 'slug' | 'name_vi' | 'name_zh' | 'first_ch' | 'role'> & {
@@ -107,6 +119,7 @@ export type ListItem = Pick<Entity, 'id' | 'slug' | 'name_vi' | 'name_zh' | 'fir
   dead: boolean
   mentions: number
   verified: boolean
+  portrait: number | null
 }
 
 export type ListFilter = { faction?: string; realm?: number; alive?: boolean; verifiedOnly?: boolean; sort?: 'mentions' | 'first' | 'name' }
@@ -116,7 +129,7 @@ export type ListFilter = { faction?: string; realm?: number; alive?: boolean; ve
  * so an unusual rank cannot leak someone's future importance.
  */
 export async function listCharacters(novel: Novel, ch: number, f: ListFilter) {
-  const [ents, facts, counts] = await Promise.all([
+  const [ents, facts, counts, portraits] = await Promise.all([
     sql<ListItem[]>`
       select id, slug, name_vi, name_zh, first_ch, role from entity
       where novel_id = ${novel.id} and type = 'character' and first_ch <= ${ch}`,
@@ -127,8 +140,13 @@ export async function listCharacters(novel: Novel, ch: number, f: ListFilter) {
     sql<{ entity_id: number; n: number }[]>`
       select m.entity_id, sum(m.count)::int as n from mention m join entity e on e.id = m.entity_id
       where e.novel_id = ${novel.id} and m.chapter <= ${ch} group by m.entity_id`,
+    sql<{ entity_id: number; id: number }[]>`
+      select distinct on (m.entity_id) m.entity_id, m.id from media m join entity e on e.id = m.entity_id
+      where e.novel_id = ${novel.id} and m.kind = 'portrait' and m.status = 'approved' and m.from_ch <= ${ch}
+      order by m.entity_id, (m.source = 'artist') desc, m.from_ch desc, m.id desc`,
   ])
-  const byId = new Map(ents.map((e) => [e.id, { ...e, faction: '', realm: '', realmRank: -1, dead: false, mentions: 0, verified: false, unverified: false }]))
+  const byId = new Map(ents.map((e) => [e.id, { ...e, faction: '', realm: '', realmRank: -1, dead: false, mentions: 0, verified: false, unverified: false, portrait: null as number | null }]))
+  for (const p of portraits) if (byId.has(p.entity_id)) byId.get(p.entity_id)!.portrait = p.id
   for (const c of counts) if (byId.has(c.entity_id)) byId.get(c.entity_id)!.mentions = c.n
   for (const x of facts) {
     const e = byId.get(x.entity_id)
@@ -165,6 +183,7 @@ export type SearchHit = Pick<Entity, 'slug' | 'name_vi' | 'name_zh' | 'role'> & 
   matched_vi: string
   first_ch: number
   alias_first_ch: number
+  portrait: number | null
 }
 
 const esc = (s: string) => s.replace(/[%_\\]/g, '\\$&')
@@ -178,7 +197,9 @@ export async function search(q: string, chapterOf: (novelSlug: string, count: nu
   const needle = han ? term : normalize(term)
   const rows = await sql<(SearchHit & { chapter_count: number })[]>`
     select distinct on (e.id) e.slug, e.name_vi, e.name_zh, e.role, e.first_ch, n.slug as novel_slug, n.title_vi as novel_title,
-           n.chapter_count, a.name as matched, a.name_vi as matched_vi, a.first_ch as alias_first_ch
+           n.chapter_count, a.name as matched, a.name_vi as matched_vi, a.first_ch as alias_first_ch,
+           (select m.id from media m where m.entity_id = e.id and m.kind = 'portrait' and m.status = 'approved' and m.from_ch <= e.first_ch
+            order by (m.source = 'artist') desc, m.id desc limit 1) as portrait
     from alias a join entity e on e.id = a.entity_id join novel n on n.id = e.novel_id
     where (n.is_live or n.is_sample) and e.type = 'character'
       and ${han ? sql`a.name like ${'%' + needle + '%'}` : sql`(a.search like ${esc(needle) + '%'} or a.search like ${'% ' + esc(needle) + '%'})`}

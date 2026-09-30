@@ -276,3 +276,29 @@ html[data-reveal] .mask-cover { display: none; }
 html[data-reveal] .only-revealed { display: inline-flex; }
 dialog.gate { border: 0; color: var(--text); background-color: transparent; }
 dialog.gate::backdrop { background: rgba(4, 6, 9, 0.72); }
+
+/* ---- images ---- */
+.hero.has-portrait { grid-template-columns: 240px minmax(0, 1fr) 460px; }
+.portrait { margin: 0; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.portrait-frame { position: relative; display: block; background-color: #0b0f15; }
+.portrait-frame img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; }
+.portrait-seal { position: absolute; top: 10px; right: 10px; width: auto; height: auto; padding: 6px 4px; writing-mode: vertical-rl; font-size: 18px; transform: rotate(-3deg); }
+.thumb { display: block; object-fit: cover; border-radius: 3px; background: #121821; flex-shrink: 0; }
+.art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.art-card { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.art-card img { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 3px; background: #121821; }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 2px 4px 4px 2px; }
+.form-grid { display: grid; gap: 16px; max-width: 640px; }
+.form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.form-grid input[type='text'], .form-grid input[type='email'], .form-grid input[type='url'], .form-grid input[type='number'], .form-grid select {
+  min-height: 44px; padding: 8px 12px; background: rgba(11, 15, 21, 0.7); border: 1px solid var(--line); border-radius: 4px;
+}
+.form-grid .check { flex-direction: row; align-items: flex-start; gap: 10px; }
+.form-grid .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--red); }
+@media (max-width: 1100px) {
+  .hero.has-portrait { grid-template-columns: 200px minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .hero.has-portrait { grid-template-columns: minmax(0, 1fr); }
+  .hero.has-portrait > .vcol { order: 0; max-width: 260px; justify-self: center; width: 100%; }
+}

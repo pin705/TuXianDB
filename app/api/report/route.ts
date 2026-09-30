@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
 import { sql } from '@/lib/db.ts'
+import { ipHash as hashIp } from '@/lib/ip.ts'
 import { parseReport, REPORT_LIMIT } from '@/lib/report.ts'
 
 const json = (body: unknown, status = 200) => Response.json(body, { status })
@@ -10,8 +10,7 @@ export async function POST(req: Request) {
   if (input === 'spam') return json({ ok: true }) // pretend success to bots
   if (typeof input === 'string') return json({ error: input }, 400)
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown'
-  const ipHash = createHash('sha256').update(`${process.env.REPORT_SALT ?? ''}:${ip}`).digest('hex').slice(0, 32)
+  const ipHash = hashIp(req)
   const [{ n }] = await sql<{ n: number }[]>`
     select count(*)::int as n from report where ip_hash = ${ipHash} and created_at > now() - make_interval(mins => ${REPORT_LIMIT.minutes})`
   if (n >= REPORT_LIMIT.count) return json({ error: 'Bạn gửi hơi nhiều, thử lại sau ít phút' }, 429)

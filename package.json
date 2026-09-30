@@ -18,7 +18,8 @@
     "pipeline:extract": "node --env-file-if-exists=.env scripts/pipeline/extract.ts",
     "pipeline:build": "node --env-file-if-exists=.env scripts/pipeline/build.ts",
     "pipeline:eval": "node --env-file-if-exists=.env scripts/pipeline/eval.ts",
-    "test:db": "node --env-file-if-exists=.env --test test/pipeline.int.ts"
+    "test:db": "node --env-file-if-exists=.env --test test/pipeline.int.ts",
+    "pipeline:portraits": "node --env-file-if-exists=.env scripts/pipeline/portraits.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
@@ -26,6 +27,7 @@
     "postgres": "^3.4.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "sharp": "^0.35.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {

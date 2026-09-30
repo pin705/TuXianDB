@@ -20,13 +20,13 @@ function fixture() {
   const dir = `${data}work/${slug}/extract`
   mkdirSync(dir, { recursive: true })
   const c = (name: string, surfaces: string[], o: Record<string, unknown> = {}) => ({
-    name, surfaces, mentions: 5, description_vi: 'Nhân vật thử.', realm: '', faction: '', location: '越国', died: false, evidence: '证据', confidence: 0.9, ...o,
+    name, surfaces, mentions: 5, description_vi: 'Nhân vật thử.', realm: '', faction: '', location: '越国', died: false, appearance_en: '', evidence: '证据', confidence: 0.9, ...o,
   })
   const factions = [{ name: '七玄门', surfaces: ['七玄门'] }, { name: '黄枫谷', surfaces: ['黄枫谷'] }]
   const chapters = [
     [c('韩立', ['韩立'], { faction: '七玄门', description_vi: 'Thiếu niên nhà nông.' }), c('墨大夫', ['墨大夫'], { faction: '七玄门' })],
     [c('韩立', ['韩立', '韩师弟'], { realm: '炼气期', faction: '七玄门' }), c('墨大夫', ['墨大夫'], { died: true })],
-    [c('韩立', ['韩立', '韩老魔'], { realm: '筑基初期', faction: '黄枫谷' })],
+    [c('韩立', ['韩立', '韩老魔'], { realm: '筑基初期', faction: '黄枫谷', appearance_en: 'Young man in a plain grey robe' })],
     [c('韩老魔', ['韩老魔'])],
     [c('韩立', ['韩立', '韩老魔'], { realm: '炼气期', faction: '黄枫谷', confidence: 0.7 })],
     [c('韩立', ['韩立', '韩老魔'], { realm: '筑基中期', faction: '黄枫谷' })],
@@ -70,6 +70,11 @@ test('ingest splits chapters and build loads spans, merges nicknames, flags regr
   const [rel] = await sql<{ from_ch: number; to_ch: number }[]>`
     select r.from_ch, r.to_ch from relation r join entity e on e.id = r.a_id join novel v on v.id = e.novel_id where v.slug = ${slug}`
   assert.deepEqual([rel.from_ch, rel.to_ch], [1, 2])
+
+  const [look] = await sql<{ appearance: string; appearance_ch: number }[]>`
+    select e.appearance, e.appearance_ch from entity e join novel v on v.id = e.novel_id where v.slug = ${slug} and e.name_zh = '韩立'`
+  assert.deepEqual([look.appearance, look.appearance_ch], ['Young man in a plain grey robe', 3], 'earliest described look, gated at its chapter')
+  assert.match(execFileSync('node', ['scripts/pipeline/portraits.ts', slug, '--dry-run'], { encoding: 'utf8' }), /Hàn Lập \(ch\. 3\)/)
 
   // A reviewer verifies a fact; rebuilding must keep it and not duplicate it.
   await sql`update fact set review = 'verified' where value = 'Trúc Cơ sơ kỳ'`

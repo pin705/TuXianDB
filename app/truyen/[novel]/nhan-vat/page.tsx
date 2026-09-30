@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChapterBar } from '@/components/ChapterBar.tsx'
 import { Masked } from '@/components/Masked.tsx'
+import { Thumb } from '@/components/Portrait.tsx'
 import { SiteHeader } from '@/components/SiteHeader.tsx'
 import { readChapter } from '@/lib/chapter.ts'
 import { getNovel, listCharacters, type ListFilter } from '@/lib/queries.ts'
@@ -94,7 +95,7 @@ export default async function ListPage({ params, searchParams }: Props) {
             <section aria-label="Kết quả" className="cards">
               {shown.map((c) => (
                 <Link key={c.id} href={`/truyen/${novel.slug}/nhan-vat/${c.slug}`} className={`card ${c.dead ? 'dead' : ''}`}>
-                  <span lang="zh" className="vzh brushfont">{c.name_zh}</span>
+                  {c.portrait ? <Thumb id={c.portrait} alt={`Chân dung ${c.name_vi}`} size={72} /> : <span lang="zh" className="vzh brushfont">{c.name_zh}</span>}
                   <span className="body">
                     <span className="name">{c.name_vi}</span>
                     <span className="small muted">{c.faction || 'Không rõ thế lực'}</span>

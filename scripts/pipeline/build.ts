@@ -26,12 +26,12 @@ const people = resolveNames(obsOf((d) => d.characters))
 const orgs = resolveNames(obsOf((d) => d.factions))
 const places = resolveNames(obsOf((d) => d.locations))
 
-type Ent = { type: 'character' | 'faction' | 'location'; zh: string; first: number; mentions: Map<number, number>; intro: string }
+type Ent = { type: 'character' | 'faction' | 'location'; zh: string; first: number; mentions: Map<number, number>; intro: string; look: string; lookCh: number | null }
 const ents = new Map<string, Ent>()
 const key = (type: Ent['type'], zh: string) => `${type}:${zh}`
 function touch(type: Ent['type'], zh: string, ch: number, count: number, intro = '') {
   const k = key(type, zh)
-  const e = ents.get(k) ?? { type, zh, first: ch, mentions: new Map(), intro: '' }
+  const e = ents.get(k) ?? { type, zh, first: ch, mentions: new Map(), intro: '', look: '', lookCh: null }
   if (ch < e.first || (ch === e.first && !e.intro)) { e.first = ch; e.intro = intro || e.intro }
   e.mentions.set(ch, (e.mentions.get(ch) ?? 0) + count)
   ents.set(k, e)
@@ -53,6 +53,10 @@ for (const { n, data } of results) {
     if (!trim(c.name)) continue
     const who = people.canon(trim(c.name))
     touch('character', who, n, Math.max(1, c.mentions), c.description_vi.trim())
+    const look = (c.appearance_en ?? '').trim()
+    const ent = ents.get(key('character', who))!
+    // Earliest description of the look: an AI portrait from it is no more of a spoiler than that chapter.
+    if (look && (ent.lookCh === null || n < ent.lookCh)) { ent.look = look.slice(0, 600); ent.lookCh = n }
     const base = { ch: n, conf: Math.max(0, Math.min(1, c.confidence)), quote: c.evidence.slice(0, 40) }
     const realm = c.realm && parseRealm(c.realm, cfg.realms)
     if (realm) push(realmObs, who, { ...base, value: realm })
@@ -111,6 +115,7 @@ try {
       return {
         novel_id: novel.id, type: e.type, name_zh: e.zh, name_vi, slug, first_ch: e.first, intro_safe: e.intro,
         pinyin: e.type === 'character' ? pinyinName(e.zh, table) : '', role: e.zh === cfg.protagonist ? 'chinh' : 'phu', mention_total: total,
+        appearance: e.look, appearance_ch: e.lookCh,
       }
     })
     const ids = new Map<string, number>()
@@ -119,7 +124,8 @@ try {
         insert into entity ${tx(rows.slice(i, i + 500) as never[])}
         on conflict (novel_id, type, name_zh) do update set name_vi = excluded.name_vi, pinyin = excluded.pinyin, first_ch = excluded.first_ch,
           intro_safe = case when entity.intro_safe = '' then excluded.intro_safe else entity.intro_safe end,
-          role = excluded.role, mention_total = excluded.mention_total
+          role = excluded.role, mention_total = excluded.mention_total,
+          appearance = excluded.appearance, appearance_ch = excluded.appearance_ch
         returning id, type, name_zh`
       for (const g of got) ids.set(key(g.type, g.name_zh), g.id)
     }

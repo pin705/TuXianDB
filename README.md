@@ -5,6 +5,7 @@ Web tra cứu nhân vật truyện tu tiên. Mọi thông tin gắn với khoả
 - **Web:** Next.js 16 (App Router) + Postgres. Giao diện "mực loang", dùng asset của [Shuimo UI](https://github.com/shuimo-design/shuimo-ui) (MIT).
 - **Pipeline:** script TypeScript gọi Claude qua Batch API. Pipeline biến text chương thành nhân vật, bí danh, cảnh giới, thế lực và quan hệ theo khoảng chương.
 - **Kiểm duyệt:** trang `/admin`. Người duyệt "đóng dấu" fact; fact đã đóng dấu hiện dấu son 验 trên trang public.
+- **Tranh:** ảnh bìa và chân dung do họa sĩ tự gửi qua `/dong-gop/tranh`, được duyệt trước khi hiện. Nhân vật chưa có tranh họa sĩ thì dùng tranh AI thủy mặc.
 
 ## Chạy local
 
@@ -28,6 +29,26 @@ Admin ở `/admin`, đăng nhập bằng `ADMIN_USER` / `ADMIN_PASSWORD`.
 - Search không trả về tên nhân vật hoặc bí danh xuất hiện sau chương đang đọc, chỉ trả về số lượng kết quả bị ẩn.
 - Mọi luật nằm trong `lib/spoiler.ts` và `lib/profile.ts`, có test trong `test/`.
 
+## Tranh (bìa và chân dung)
+
+- **Nguồn tranh:**
+  - Chỉ nhận tranh do **chính họa sĩ** gửi. Form bắt buộc tích cả ba cam kết: là tác giả, không lấy từ donghua hay nguồn khác, không spoil.
+  - Họa sĩ chọn giấy phép: chỉ hiển thị trên TuXianDB, CC BY-NC 4.0, hoặc CC BY 4.0.
+  - Tên họa sĩ luôn được ghi. Link của họa sĩ gắn `rel="nofollow ugc"`. Email chỉ admin thấy.
+- **Chặn spoiler cho tranh:**
+  - Mỗi tranh có `from_ch`, tức giai đoạn nhân vật được vẽ.
+  - Người đọc thấy tranh mới nhất tới chương họ đang đọc, ưu tiên tranh họa sĩ hơn tranh AI.
+  - Người chưa chọn chương chỉ thấy tranh lúc nhân vật mới xuất hiện.
+  - Tranh giai đoạn sau không có trong HTML, chỉ hiện dưới dạng số đếm.
+- **Xử lý file:** mọi ảnh được mã hoá lại sang webp, bản lớn tối đa 1200px và thumbnail 360px. Việc mã hoá lại làm mất EXIF/GPS và mọi thứ nhúng trong file.
+- **Duyệt và gỡ:** duyệt ở `/admin?tab=tranh`. Tab này cũng có ô gỡ tranh theo mã khi có yêu cầu bản quyền. Trang `/ban-quyen` ghi quy trình, đặt email liên hệ qua `CONTACT_EMAIL`.
+- **Tranh AI:**
+  - `npm run pipeline:portraits -- <slug> [--limit 50] [--dry-run]` tạo chân dung thủy mặc từ mô tả ngoại hình sớm nhất mà pipeline trích được. Chương có mô tả đó là `from_ch` của tranh.
+  - Tranh AI vào hàng chờ duyệt như mọi tranh khác.
+  - Claude không tạo ảnh, nên bước này dùng OpenAI Images API (`OPENAI_API_KEY`, `IMAGE_MODEL`, mặc định `gpt-image-2.5-flare`).
+  - Prompt không chứa tên nhân vật, để model vẽ theo mô tả chữ chứ không bắt chước thiết kế donghua.
+- **Lưu trữ:** ảnh nằm trong Postgres (bảng `media`). Khi dung lượng vượt vài GB, chuyển phần bytes sang R2 hoặc S3.
+
 ## Pipeline cho một truyện thật
 
 Text truyện là thứ **bạn tự cung cấp** từ nguồn hợp pháp. Không commit và không deploy text: `data/raw/` và `data/work/` đã nằm trong `.gitignore`.
@@ -46,6 +67,7 @@ npm run pipeline:extract -- submit <slug>                        # cả truyện
 npm run pipeline:extract -- collect <slug>
 npm run pipeline:build   -- <slug>                               # nạp DB (chưa public)
 npm run pipeline:build   -- <slug> --publish                     # bật truyện lên site
+npm run pipeline:portraits -- <slug> --limit 100                 # tranh AI cho nhân vật chưa có tranh họa sĩ (chờ duyệt)
 ```
 
 - **Model:** mặc định `claude-opus-5-5`, effort `medium`. Đổi qua `PIPELINE_MODEL` / `PIPELINE_EFFORT`. Chỉ đổi sang model rẻ hơn khi `pipeline:eval` cho thấy vẫn giữ được ngưỡng chất lượng.
@@ -62,7 +84,7 @@ npm run pipeline:build   -- <slug> --publish                     # bật truyệ
 ## Deploy (Vercel + Neon, hoặc tương đương)
 
 1. Tạo Postgres (Neon) và lấy **pooled** connection string.
-2. Đặt biến môi trường: `DATABASE_URL`, `SITE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `REPORT_SALT`.
+2. Đặt biến môi trường: `DATABASE_URL`, `SITE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `REPORT_SALT`, `CONTACT_EMAIL`.
 3. `npm run db:migrate` với `DATABASE_URL` của production. Schema idempotent, chạy lại lúc nào cũng được.
 4. Chạy pipeline ở máy local, trỏ `DATABASE_URL` vào production. Pipeline không chạy trên server web.
 5. Theo dõi uptime qua `/api/health`.
@@ -85,7 +107,7 @@ CI (`.github/workflows/ci.yml`) chạy cả bốn lệnh trên.
 - [ ] Chốt nguồn text hợp pháp, và có luật sư xem điều khoản
 - [ ] Gold set 30 chương: fact precision ≥ 95%, recall ≥ 80% (`pipeline:eval`)
 - [ ] 200 nhân vật xuất hiện nhiều nhất đã đóng dấu hết (xem số liệu trên `/admin`)
-- [ ] Có trang "Liên hệ bản quyền" và quy trình gỡ bỏ
+- [ ] Đặt `CONTACT_EMAIL` cho trang `/ban-quyen`, và có người trực quy trình gỡ bỏ
 - [ ] `ADMIN_PASSWORD` mạnh, `SITE_URL` đúng domain, `/api/health` được giám sát
 
 ## Giới hạn đã biết (có chủ đích)
@@ -96,6 +118,7 @@ CI (`.github/workflows/ci.yml`) chạy cả bốn lệnh trên.
 - **Thế lực và địa danh:** chưa có trang riêng, mới chỉ hiện như giá trị của fact.
 - **Hộp chọn chương:** chưa có tab "Theo ký ức". Câu hỏi kiểu "bạn đọc tới đoạn X chưa?" luôn làm lộ sự kiện X.
 - **Donghua:** chưa hỗ trợ chọn chương theo tập phim.
+- **Tài khoản họa sĩ:** chưa có. Họa sĩ gửi tranh bằng email, nên chưa có trang cá nhân hay danh sách tranh của từng người.
 
 ## License và nguồn dữ liệu
 

@@ -59,7 +59,7 @@ export async function openConflicts() {
 }
 
 export async function stats() {
-  const [s] = await sql<{ top_done: number; top_total: number; verified: number; rejected: number; stale_reports: number; open_reports: number; queue: number }[]>`
+  const [s] = await sql<{ top_done: number; top_total: number; verified: number; rejected: number; stale_reports: number; open_reports: number; queue: number; media: number }[]>`
     with top as (select id from entity where type = 'character' order by mention_total desc limit 200)
     select
       (select count(*)::int from top where not exists (select 1 from fact f where f.entity_id = top.id and f.review in ('auto', 'disputed'))
@@ -69,7 +69,8 @@ export async function stats() {
       (select count(*)::int from fact where review = 'rejected') as rejected,
       (select count(*)::int from report where status = 'open' and created_at < now() - interval '72 hours') as stale_reports,
       (select count(*)::int from report where status = 'open') as open_reports,
-      ((select count(*) from fact where review in ('auto', 'disputed')) + (select count(*) from relation where review in ('auto', 'disputed')))::int as queue`
+      ((select count(*) from fact where review in ('auto', 'disputed')) + (select count(*) from relation where review in ('auto', 'disputed')))::int as queue,
+      (select count(*)::int from media where status = 'pending') as media`
   return s
 }
 
@@ -122,4 +123,18 @@ export async function resolveConflict(id: number, choice: { entityId: number } |
     }
     await tx`update alias_conflict set status = 'resolved' where id = ${id}`
   })
+}
+
+export async function pendingMedia() {
+  return sql<{ id: number; kind: string; source: string; from_ch: number; artist_name: string; artist_url: string; artist_email: string; license: string;
+               width: number; height: number; created_at: Date; novel_title: string; novel_slug: string; entity_name: string | null; entity_slug: string | null; prompt: string }[]>`
+    select m.id, m.kind, m.source, m.from_ch, m.artist_name, m.artist_url, m.artist_email, m.license, m.width, m.height, m.created_at, m.prompt,
+           n.title_vi as novel_title, n.slug as novel_slug, e.name_vi as entity_name, e.slug as entity_slug
+    from media m join novel n on n.id = m.novel_id left join entity e on e.id = m.entity_id
+    where m.status = 'pending' order by (m.source = 'artist') desc, m.created_at limit 60`
+}
+
+export async function setMediaStatus(ids: number[], status: 'approved' | 'rejected') {
+  if (!['approved', 'rejected'].includes(status) || !ids.every(Number.isInteger)) throw new Error('bad input')
+  await sql`update media set status = ${status} where id = any(${ids})`
 }
