@@ -1,0 +1,23 @@
+{
+  "slug": "pham-nhan-tu-tien",
+  "title_zh": "凡人修仙传",
+  "title_vi": "Phàm Nhân Tu Tiên",
+  "author_vi": "Vong Ngữ",
+  "cover": "#1A2847",
+  "protagonist": "韩立",
+  "realms": [
+    { "zh": "炼气", "vi": "Luyện Khí" },
+    { "zh": "筑基", "vi": "Trúc Cơ" },
+    { "zh": "结丹", "vi": "Kết Đan" },
+    { "zh": "元婴", "vi": "Nguyên Anh" },
+    { "zh": "化神", "vi": "Hóa Thần" },
+    { "zh": "炼虚", "vi": "Luyện Hư" },
+    { "zh": "合体", "vi": "Hợp Thể" },
+    { "zh": "大乘", "vi": "Đại Thừa" },
+    { "zh": "渡劫", "vi": "Độ Kiếp" }
+  ],
+  "name_overrides": {
+    "墨彩环": "Mặc Thải Hoàn",
+    "墨大夫": "Mặc đại phu"
+  }
+}

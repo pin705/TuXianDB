@@ -1,0 +1,9 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.local
+# Novel source text and pipeline work files are private and must never be committed or deployed.
+data/raw/
+data/work/
