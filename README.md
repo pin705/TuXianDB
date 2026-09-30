@@ -122,6 +122,7 @@ CI (`.github/workflows/ci.yml`) chạy cả bốn lệnh trên.
 
 ## License và nguồn dữ liệu
 
+- Code của project: MIT, xem `LICENSE`. Không bao gồm text truyện (không commit, xem phần Pipeline ở trên) — bản quyền text vẫn thuộc tác giả gốc.
 - Asset thủy mặc (giấy, núi, viền cọ, khung, giọt mực, vòng son): Shuimo UI, MIT. Xem `LICENSES/shuimo-ui.txt`. Bản cho nền tối và texture mực loang được tạo từ `scripts/data/inkgen.py`.
 - `data/hanviet.json` được tạo từ [hanviet-pinyin-wordlist](https://github.com/ph0ngp/hanviet-pinyin-wordlist) (MIT, `LICENSES/hanviet-pinyin-wordlist.txt`) và Unicode Unihan (`LICENSES/unicode.txt`), bằng `scripts/data/build_hanviet.py`.
 - Font: Google Fonts, license OFL, được self-host qua `next/font`.
